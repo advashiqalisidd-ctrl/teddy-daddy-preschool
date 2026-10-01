@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TEDDY Daddy Pre School — Online Book</title>
+<style>
+:root{--green:#0d5c4a;--mint:#18a979;--cream:#fffaf0}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#eef5f2;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#123}
+body{display:flex;flex-direction:column;overflow:hidden}
+.header{height:62px;display:flex;align-items:center;gap:10px;padding:8px 12px;background:#fff;box-shadow:0 2px 12px #0001;z-index:5}
+.brand{font-weight:800;color:var(--green);white-space:nowrap}
+.title{flex:1;text-align:center;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btn{border:0;border-radius:10px;padding:9px 12px;background:var(--green);color:#fff;font-weight:700;cursor:pointer}
+.btn.alt{background:#e8f4ef;color:var(--green)}
+#stage{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:12px;background:radial-gradient(circle at 50% 30%,#fff,#e6f1ed)}
+#book{width:min(94vw,1200px);height:min(84vh,820px)}
+#loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--green);font-size:18px;z-index:3;background:#eef5f2}
+.controls{height:58px;background:#fff;display:flex;justify-content:center;align-items:center;gap:10px;box-shadow:0 -2px 12px #0001;z-index:5}
+.pageinfo{min-width:110px;text-align:center;font-weight:700;color:#345}
+canvas.page{background:#fff;box-shadow:0 2px 18px #0002}
+@media(max-width:700px){
+ .header{height:56px}.brand{font-size:13px}.title{font-size:13px}.btn{padding:8px 9px;font-size:12px}
+ #book{width:96vw;height:78vh}.controls{height:56px}
+}
+</style>
+</head>
+<body>
+<header class="header">
+  <div class="brand">🧸 TEDDY Daddy</div>
+  <div class="title" id="bookTitle">Online Study</div>
+  <button class="btn alt" id="downloadBtn">⬇ PDF</button>
+</header>
+<main id="stage">
+  <div id="loading">Loading book…</div>
+  <div id="book"></div>
+</main>
+<footer class="controls">
+  <button class="btn alt" id="prev">← Previous</button>
+  <div class="pageinfo" id="pageInfo">Page —</div>
+  <button class="btn" id="next">Next →</button>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs" type="module"></script>
+<script src="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.min.js"></script>
+<script type="module">
+const params = new URLSearchParams(location.search);
+const pdfUrl = params.get('pdf') || 'books/class-1-english.pdf';
+const title = params.get('title') || 'Online Study';
+document.title = 'TEDDY Daddy Pre School — ' + title;
+document.getElementById('bookTitle').textContent = title;
+document.getElementById('downloadBtn').onclick = () => {
+  const a=document.createElement('a'); a.href=pdfUrl; a.download=''; a.click();
+};
+
+const loading=document.getElementById('loading');
+const bookEl=document.getElementById('book');
+const info=document.getElementById('pageInfo');
+
+window.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const pdfjsLib = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs');
+    pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs';
+    const pdf=await pdfjsLib.getDocument(pdfUrl).promise;
+    const pages=[];
+    for(let i=1;i<=pdf.numPages;i++){
+      const p=await pdf.getPage(i);
+      const base=1000/Math.max(p.getViewport({scale:1}).width,1);
+      const scale=Math.min(base,1.35);
+      const vp=p.getViewport({scale});
+      const c=document.createElement('canvas');
+      c.className='page';
+      c.width=Math.ceil(vp.width); c.height=Math.ceil(vp.height);
+      const ctx=c.getContext('2d',{alpha:false});
+      await p.render({canvasContext:ctx,viewport:vp}).promise;
+      pages.push(c);
+      loading.textContent=`Preparing book… ${i} / ${pdf.numPages}`;
+    }
+
+    if (!window.St || !window.St.PageFlip) throw new Error('PageFlip library did not load');
+    const pf=new St.PageFlip(bookEl,{
+      width:pages[0].width,
+      height:pages[0].height,
+      size:'stretch',
+      minWidth:260,
+      maxWidth:1000,
+      minHeight:340,
+      maxHeight:1400,
+      maxShadowOpacity:.28,
+      showCover:true,
+      mobileScrollSupport:false,
+      usePortrait:true,
+      drawShadow:true,
+      flippingTime:650
+    });
+    pf.loadFromHTML(pages);
+    const update=()=>{
+      const idx=pf.getCurrentPageIndex();
+      info.textContent=`Page ${idx+1} / ${pages.length}`;
+    };
+    pf.on('flip',update);
+    document.getElementById('prev').onclick=()=>pf.flipPrev('bottom');
+    document.getElementById('next').onclick=()=>pf.flipNext('bottom');
+    update();
+    loading.remove();
+  } catch(err) {
+    console.error(err);
+    loading.innerHTML='Book could not be loaded. Please check the PDF path and internet connection.';
+  }
+});
+</script>
+</body>
+</html>

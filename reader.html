@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>TEDDY Daddy Flipbook</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:#101722;color:#fff;font-family:Arial,Helvetica,sans-serif;overflow:hidden}body{display:flex;flex-direction:column}.top{height:58px;display:flex;align-items:center;gap:10px;padding:0 12px;background:#172235;border-bottom:1px solid #314157;flex-shrink:0}.top a,.top button{color:#fff;background:#263650;border:0;border-radius:10px;padding:9px 12px;text-decoration:none;font-weight:700;cursor:pointer}.title{flex:1;text-align:center;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.stage{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:8px;background:radial-gradient(circle at 50% 35%,#26344a,#0e1520)}#book{width:min(94vw,1000px);height:min(84vh,780px)}#loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:16px;background:#101722;z-index:10}.controls{height:58px;display:flex;align-items:center;justify-content:center;gap:10px;background:#172235;flex-shrink:0}.controls button{background:#e9b52e;color:#172235;border:0;border-radius:10px;padding:10px 15px;font-weight:900;cursor:pointer}.counter{min-width:100px;text-align:center;font-weight:800}.page{background:#fff;overflow:hidden}.page img{display:block;width:100%;height:100%;object-fit:contain;background:#fff;user-select:none;-webkit-user-drag:none}@media(max-width:600px){.top{height:54px;padding:0 8px}.top a,.top button{padding:8px 10px}.title{font-size:14px}.stage{padding:4px}.controls{height:54px}.controls button{padding:9px 11px;font-size:13px}.counter{min-width:85px;font-size:13px}#book{width:96vw;height:79vh}}
+</style>
+</head>
+<body>
+<div class="top"><a href="index.html">← Books</a><div class="title" id="title">Loading…</div><button id="full" aria-label="Fullscreen">⛶</button></div>
+<div class="stage"><div id="loading">Opening flipbook…</div><div id="book"></div></div>
+<div class="controls"><button id="prev">‹ Previous</button><div class="counter" id="counter">Page —</div><button id="next">Next ›</button></div>
+<script src="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.min.js"></script>
+<script>
+const params=new URLSearchParams(location.search),slug=params.get('book');
+let data,pf,pages=[],loadingSet=new Set();
+const title=document.getElementById('title'),counter=document.getElementById('counter'),loading=document.getElementById('loading'),bookEl=document.getElementById('book');
+const PLACEHOLDER='page-placeholder.svg';
+async function loadPage(i){
+  if(i<0||i>=pages.length||loadingSet.has(i))return;
+  const img=pages[i].querySelector('img');
+  if(!img||img.dataset.loaded)return;
+  loadingSet.add(i);
+  img.src=img.dataset.src;
+  try{await img.decode()}catch(e){}
+  img.dataset.loaded='1';
+}
+async function warmAround(i){
+  const targets=[i,i+1,i-1,i+2,i+3];
+  await Promise.all(targets.filter(n=>n>=0&&n<pages.length).map(loadPage));
+}
+async function init(){
+  if(!slug){location.href='index.html';return}
+  try{
+    const r=await fetch('books/'+slug+'/book.json',{cache:'force-cache'});
+    if(!r.ok)throw new Error('Book data not found');
+    data=await r.json();title.textContent=data.title;
+    pages=data.pages_list.map((src,n)=>{const el=document.createElement('div');el.className='page';const img=document.createElement('img');img.src=PLACEHOLDER;img.dataset.src=src;img.alt='Page '+(n+1);el.appendChild(img);return el});
+    // Only load the first two pages before showing the reader.
+    await warmAround(0);
+    if(!window.St||!window.St.PageFlip)throw new Error('Flipbook engine did not load');
+    const first=pages[0].querySelector('img'),w=first.naturalWidth||800,h=first.naturalHeight||1132;
+    pf=new St.PageFlip(bookEl,{width:w,height:h,size:'stretch',minWidth:260,maxWidth:1000,minHeight:340,maxHeight:1400,maxShadowOpacity:.30,showCover:true,mobileScrollSupport:false,usePortrait:true,drawShadow:true,flippingTime:700,startZIndex:10,autoSize:true,clickEventForward:false,useMouseEvents:true});
+    pf.loadFromHTML(pages);
+    const update=async()=>{const idx=pf.getCurrentPageIndex();counter.textContent='Page '+(idx+1)+' / '+data.pages;await warmAround(idx)};
+    pf.on('flip',update);await update();loading.remove();
+  }catch(err){console.error(err);loading.textContent='Book could not be loaded. Please refresh and try again.'}
+}
+document.getElementById('next').onclick=()=>pf?.flipNext('bottom');document.getElementById('prev').onclick=()=>pf?.flipPrev('bottom');document.getElementById('full').onclick=()=>document.documentElement.requestFullscreen?.();document.addEventListener('keydown',e=>{if(e.key==='ArrowRight')pf?.flipNext('bottom');if(e.key==='ArrowLeft')pf?.flipPrev('bottom')});init();
+</script></body></html>
